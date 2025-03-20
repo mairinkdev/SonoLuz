@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SonoLuz - Visualizador Audiovisual</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <!-- Estilos personalizados -->
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- GL Matrix para cálculos WebGL -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
+</head>
+<body class="bg-dark text-light">
+    <div class="container-fluid p-0 m-0">
+        <!-- Overlay de introdução -->
+        <div id="introOverlay" class="overlay d-flex flex-column justify-content-center align-items-center">
+            <div class="text-center p-4 rounded intro-content">
+                <h1 class="display-4 fw-bold mb-4">Visualizador Audiovisual</h1>
+                <p class="lead mb-4">Cole o link do YouTube para começar</p>
+                <div class="input-group mb-3">
+                    <input type="text" id="youtubeUrl" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                    <button id="loadBtn" class="btn btn-primary">
+                        <i class="bi bi-arrow-right-circle"></i> Carregar
+                    </button>
+                </div>
+                <div class="pulse-circle"></div>
+            </div>
+        </div>
+
+        <!-- Controles minimalistas -->
+        <nav class="navbar navbar-dark bg-black bg-opacity-50 fixed-top">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">
+                    <i class="bi bi-music-note-beamed me-2"></i>Visualizer
+                </a>
+                
+                <div class="d-flex align-items-center">
+                    <div class="btn-group me-2">
+                        <button id="effectBtn" class="btn btn-sm btn-dark dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-sliders me-1"></i>Efeito
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#" data-value="starburst">Explosão Estelar</a></li>
+                            <li><a class="dropdown-item" href="#" data-value="circular">Circular</a></li>
+                            <li><a class="dropdown-item" href="#" data-value="kaleidoscope">Caleidoscópio</a></li>
+                        </ul>
+                    </div>
+                    
+                    <button id="playBtn" class="btn btn-success btn-sm me-2" type="button" disabled>
+                        <i class="bi bi-play-fill"></i>
+                    </button>
+                    <button id="pauseBtn" class="btn btn-danger btn-sm me-2" type="button" disabled>
+                        <i class="bi bi-pause-fill"></i>
+                    </button>
+                    <button id="urlBtn" class="btn btn-outline-light btn-sm" type="button">
+                        <i class="bi bi-link-45deg"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Canvas para visualização -->
+        <canvas id="visualizer"></canvas>
+
+        <!-- Container invisível para o player do YouTube -->
+        <div id="player" style="position: absolute; top: -9999px; left: -9999px;"></div>
+
+        <!-- Modal para inserir novo URL -->
+        <div class="modal fade" id="urlModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content bg-dark text-light">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title">Alterar vídeo</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="input-group">
+                            <input type="text" id="youtubeUrlModal" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                            <button id="loadBtnModal" class="btn btn-primary" data-bs-dismiss="modal">
+                                <i class="bi bi-arrow-right-circle"></i> Carregar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Elemento oculto para visualMode -->
+        <select id="visualMode" class="d-none">
+            <option value="starburst">Explosão Estelar</option>
+            <option value="circular">Circular</option>
+            <option value="kaleidoscope">Caleidoscópio</option>
+        </select>
+    </div>
+
+    <!-- Scripts Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- YouTube API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <!-- Scripts do visualizador -->
+    <script src="js/visualEffects.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html> 
