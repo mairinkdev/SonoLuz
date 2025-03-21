@@ -44,6 +44,13 @@ function init() {
     const togglePlayerBtn = document.getElementById('togglePlayerBtn');
     const introOverlay = document.getElementById('introOverlay');
     const playerClickTip = document.getElementById('playerClickTip');
+    const randomVideoBtn = document.getElementById('randomVideoBtn');
+    
+    // Garantir que o título está correto
+    const titleElement = document.getElementById('videoTitle');
+    if (titleElement) {
+        titleElement.textContent = "Escolha uma música";
+    }
     
     // Criar instância de efeitos visuais
     visualEffects = new VisualEffects(canvas);
@@ -71,6 +78,19 @@ function init() {
     if (loadBtnModal) {
         loadBtnModal.removeEventListener('click', () => loadYoutubeVideo(youtubeUrlInputModal.value));
         loadBtnModal.addEventListener('click', () => loadYoutubeVideo(youtubeUrlInputModal.value));
+    }
+    
+    // Configura botão de vídeo aleatório
+    if (randomVideoBtn) {
+        randomVideoBtn.removeEventListener('click', carregarVideoAutomatico);
+        randomVideoBtn.addEventListener('click', function() {
+            // Fechar o modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('urlModal'));
+            if (modal) modal.hide();
+            
+            // Carregar vídeo aleatório
+            carregarVideoAutomatico();
+        });
     }
     
     // Listeners para controles de reprodução - serão configurados quando o player estiver pronto
@@ -103,10 +123,10 @@ function init() {
     // Responsivo
     window.addEventListener('resize', () => visualEffects.resize());
     
-    // Carregar vídeo padrão automaticamente (após 1.5 segundos)
+    // Abrir o modal para inserir URL ao iniciar
     setTimeout(() => {
-        carregarVideoAutomatico();
-    }, 1500);
+        openUrlModal();
+    }, 1000);
 }
 
 // Abrir o modal de URL
@@ -763,16 +783,35 @@ function mostrarAlerta(mensagem) {
 function atualizarTitulo() {
     // Atualizar título com o nome do vídeo atual
     try {
-        const videoTitle = youtubePlayer.getVideoData().title;
-        if (videoTitle) {
-            // Atualizar apenas o elemento span dentro da navbar
-            const titleElement = document.getElementById('videoTitle');
+        const titleElement = document.getElementById('videoTitle');
+        
+        if (!youtubePlayer) {
+            // Se não houver player, mostrar mensagem padrão
             if (titleElement) {
-                titleElement.textContent = videoTitle.substring(0, 20) + (videoTitle.length > 20 ? '...' : '');
+                titleElement.textContent = "Escolha uma música";
+            }
+            return;
+        }
+        
+        const videoData = youtubePlayer.getVideoData();
+        if (videoData && videoData.title) {
+            // Atualizar apenas o elemento span dentro da navbar
+            if (titleElement) {
+                titleElement.textContent = videoData.title.substring(0, 20) + (videoData.title.length > 20 ? '...' : '');
+            }
+        } else {
+            // Se não tiver título, mostrar mensagem padrão
+            if (titleElement) {
+                titleElement.textContent = "Visualizador SonoLuz";
             }
         }
     } catch (e) {
         console.warn('Não foi possível obter o título do vídeo', e);
+        // Em caso de erro, garantir que o título está definido
+        const titleElement = document.getElementById('videoTitle');
+        if (titleElement) {
+            titleElement.textContent = "Visualizador SonoLuz";
+        }
     }
 }
 
@@ -792,9 +831,5 @@ function togglePlayerVisibility() {
 function onYouTubeIframeAPIReady() {
     console.log('YouTube API pronta');
     
-    // Se a API estiver pronta e nenhum vídeo foi carregado ainda,
-    // podemos carregar o vídeo padrão
-    if (!youtubePlayer) {
-        carregarVideoAutomatico();
-    }
+    // Não carregue um vídeo automaticamente, espere pelo input do usuário
 } 
