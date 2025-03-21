@@ -43,7 +43,6 @@ function init() {
     const urlBtn = document.getElementById('urlBtn');
     const togglePlayerBtn = document.getElementById('togglePlayerBtn');
     const introOverlay = document.getElementById('introOverlay');
-    const dropdownItems = document.querySelectorAll('.dropdown-item');
     const playerClickTip = document.getElementById('playerClickTip');
     
     // Criar instância de efeitos visuais
@@ -63,59 +62,40 @@ function init() {
     document.querySelector('#effectBtn').innerHTML = 
         `<i class="bi bi-sliders me-1"></i>Explosão Estelar`;
     
-    // Listeners para carregamento de URL
-    loadBtn.addEventListener('click', () => loadYoutubeVideo(youtubeUrlInput.value));
-    loadBtnModal.addEventListener('click', () => loadYoutubeVideo(youtubeUrlInputModal.value));
+    // Remover listeners existentes para evitar duplicação
+    if (loadBtn) {
+        loadBtn.removeEventListener('click', () => loadYoutubeVideo(youtubeUrlInput.value));
+        loadBtn.addEventListener('click', () => loadYoutubeVideo(youtubeUrlInput.value));
+    }
     
-    // Listeners para controles de reprodução
-    playBtn.addEventListener('click', startPlayback);
-    pauseBtn.addEventListener('click', pausePlayback);
+    if (loadBtnModal) {
+        loadBtnModal.removeEventListener('click', () => loadYoutubeVideo(youtubeUrlInputModal.value));
+        loadBtnModal.addEventListener('click', () => loadYoutubeVideo(youtubeUrlInputModal.value));
+    }
+    
+    // Listeners para controles de reprodução - serão configurados quando o player estiver pronto
+    // em enablePlaybackControls()
     
     // Listener para abrir modal
-    urlBtn.addEventListener('click', () => {
-        const modal = new bootstrap.Modal(document.getElementById('urlModal'));
-        modal.show();
-    });
+    if (urlBtn) {
+        urlBtn.removeEventListener('click', openUrlModal);
+        urlBtn.addEventListener('click', openUrlModal);
+    }
     
     // Listener para toggle do player
-    togglePlayerBtn.addEventListener('click', togglePlayerVisibility);
+    if (togglePlayerBtn) {
+        togglePlayerBtn.removeEventListener('click', togglePlayerVisibility);
+        togglePlayerBtn.addEventListener('click', togglePlayerVisibility);
+    }
     
     // Listener para dica do player
     if (playerClickTip) {
-        playerClickTip.addEventListener('click', () => {
-            // Esconder a dica
-            const playerOverlay = document.querySelector('.player-overlay');
-            if (playerOverlay) {
-                playerOverlay.style.opacity = '0';
-                setTimeout(() => {
-                    playerOverlay.style.display = 'none';
-                }, 500);
-            }
-            
-            // Após um clique no player, podemos tentar iniciar a reprodução
-            setTimeout(() => {
-                startPlayback();
-            }, 1000);
-        });
+        playerClickTip.removeEventListener('click', handlePlayerTipClick);
+        playerClickTip.addEventListener('click', handlePlayerTipClick);
     }
     
     // Verificar periodicamente se o player está realmente reproduzindo
-    setInterval(() => {
-        if (youtubePlayer && youtubePlayer.getPlayerState) {
-            const state = youtubePlayer.getPlayerState();
-            isPlaying = (state === YT.PlayerState.PLAYING);
-            
-            // Forçar atualização das partículas mesmo se o player não estiver tocando
-            if (!isPlaying && visualEffects) {
-                // Simular uma batida fraca para manter o visual interessante
-                visualEffects.onBeat(0.3);
-                // Adicionar algumas partículas
-                if (Math.random() > 0.7) {
-                    visualEffects.addStarburstParticles(0.3);
-                }
-            }
-        }
-    }, 2000);
+    setInterval(checkPlayerStatus, 2000);
     
     // Iniciar loop de animação
     startAnimation();
@@ -127,6 +107,50 @@ function init() {
     setTimeout(() => {
         carregarVideoAutomatico();
     }, 1500);
+}
+
+// Abrir o modal de URL
+function openUrlModal() {
+    const modal = new bootstrap.Modal(document.getElementById('urlModal'));
+    modal.show();
+}
+
+// Lidar com o clique na dica do player
+function handlePlayerTipClick() {
+    // Esconder a dica
+    const playerOverlay = document.querySelector('.player-overlay');
+    if (playerOverlay) {
+        playerOverlay.style.opacity = '0';
+        setTimeout(() => {
+            playerOverlay.style.display = 'none';
+        }, 500);
+    }
+    
+    // Após um clique no player, podemos tentar iniciar a reprodução
+    setTimeout(() => {
+        startPlayback();
+    }, 1000);
+}
+
+// Verificar o status do player periodicamente
+function checkPlayerStatus() {
+    if (youtubePlayer && youtubePlayer.getPlayerState) {
+        const state = youtubePlayer.getPlayerState();
+        isPlaying = (state === YT.PlayerState.PLAYING);
+        
+        // Atualizar estado visual dos botões
+        updatePlayButton(isPlaying);
+        
+        // Forçar atualização das partículas mesmo se o player não estiver tocando
+        if (!isPlaying && visualEffects) {
+            // Simular uma batida fraca para manter o visual interessante
+            visualEffects.onBeat(0.3);
+            // Adicionar algumas partículas
+            if (Math.random() > 0.7) {
+                visualEffects.addStarburstParticles(0.3);
+            }
+        }
+    }
 }
 
 // Carregar um vídeo automático de exemplo
@@ -222,35 +246,53 @@ function extrairVideoId(url) {
 function onPlayerReady(event) {
     console.log('Player pronto');
     
-    // Inicializar processamento de áudio
-    iniciarProcessamentoAudio();
-    
-    // Habilitar controles
-    enablePlaybackControls();
-    
-    // Atualizar interface
-    ocultarCarregamento();
-    atualizarTitulo();
-    
-    // Esconder overlay gradualmente
-    const introOverlay = document.getElementById('introOverlay');
-    introOverlay.style.opacity = 0;
-    setTimeout(() => {
-        introOverlay.style.display = 'none';
-    }, 1000);
-    
-    // Tentar reproduzir automaticamente (pode ser bloqueado pelo navegador)
     try {
-        // Ativar o áudio context (necessário devido a políticas dos navegadores)
-        if (audioContext && audioContext.state === 'suspended') {
-            audioContext.resume();
+        // Inicializar processamento de áudio
+        iniciarProcessamentoAudio();
+        
+        // Habilitar controles depois que o player está pronto
+        enablePlaybackControls();
+        
+        // Atualizar interface
+        ocultarCarregamento();
+        atualizarTitulo();
+        
+        // Esconder overlay gradualmente
+        const introOverlay = document.getElementById('introOverlay');
+        if (introOverlay) {
+            introOverlay.style.opacity = 0;
+            setTimeout(() => {
+                introOverlay.style.display = 'none';
+            }, 1000);
         }
         
-        setTimeout(() => {
-            startPlayback();
-        }, 1500);
-    } catch (e) {
-        console.warn('Reprodução automática bloqueada pelo navegador:', e);
+        // Tentar reproduzir automaticamente (pode ser bloqueado pelo navegador)
+        try {
+            // Ativar o áudio context (necessário devido a políticas dos navegadores)
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            // Aguardar um momento antes de tentar reproduzir
+            setTimeout(() => {
+                console.log('Tentando iniciar a reprodução automaticamente...');
+                startPlayback();
+                
+                // Verificar se conseguimos iniciar
+                setTimeout(() => {
+                    const playerState = youtubePlayer.getPlayerState();
+                    if (playerState !== YT.PlayerState.PLAYING) {
+                        console.warn('Reprodução automática bloqueada pelo navegador');
+                        // Não mostrar alerta aqui para evitar confundir o usuário
+                    }
+                }, 500);
+            }, 1500);
+        } catch (e) {
+            console.warn('Reprodução automática bloqueada:', e);
+        }
+    } catch (error) {
+        console.error('Erro ao inicializar o player:', error);
+        mostrarAlerta('Ocorreu um erro ao inicializar o player. Tente recarregar a página.');
     }
 }
 
@@ -511,79 +553,153 @@ function startAnimation() {
 
 // Iniciar reprodução
 function startPlayback() {
-    if (!youtubePlayer) return;
+    if (!youtubePlayer) {
+        console.error('Player não inicializado');
+        mostrarAlerta('Erro: Player não inicializado. Carregue um vídeo primeiro.');
+        return;
+    }
     
     console.log('Iniciando reprodução...');
     
-    // Tentar resumir o contexto de áudio se estiver suspenso
+    // Verificar se o contexto de áudio está suspenso e tentar resumir
     if (audioContext && audioContext.state === 'suspended') {
-        audioContext.resume().then(() => {
-            console.log('AudioContext resumido com sucesso');
-        }).catch(err => {
+        audioContext.resume().catch(err => {
             console.error('Erro ao resumir AudioContext:', err);
         });
     }
     
-    // Deixar o player visível durante a reprodução
+    // Tornar o player visível
     const playerContainer = document.getElementById('playerContainer');
     playerVisible = true;
     playerContainer.classList.add('visible');
     
-    // Iniciar a reprodução com um pequeno atraso para garantir que a API está pronta
-    setTimeout(() => {
-        try {
+    try {
+        // Verificar o estado atual do player e agir de acordo
+        const playerState = youtubePlayer.getPlayerState();
+        
+        if (playerState === YT.PlayerState.PAUSED || 
+            playerState === YT.PlayerState.CUED || 
+            playerState === YT.PlayerState.ENDED) {
+            // O vídeo está carregado, mas não está tocando, então podemos dar play
             youtubePlayer.playVideo();
-            console.log('Comando de play enviado ao player');
-            
-            // Verificar se realmente começou a tocar
-            setTimeout(() => {
-                if (youtubePlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
-                    console.warn('Reprodução não iniciou automaticamente, tente clicar no player');
-                    mostrarAlerta('Para iniciar a reprodução, clique primeiro no player do YouTube e depois no botão Play');
-                }
-            }, 2000);
-        } catch (e) {
-            console.error('Erro ao iniciar reprodução:', e);
-            mostrarAlerta('Erro ao iniciar reprodução. Tente clicar diretamente no player do YouTube.');
+            console.log('Reprodução iniciada');
+        } else if (playerState === -1) {
+            // O vídeo ainda não foi iniciado, tentar iniciar
+            youtubePlayer.playVideo();
+            console.log('Tentando iniciar vídeo não iniciado');
+        } else {
+            console.log('Player já está reproduzindo ou em outro estado:', playerState);
         }
-    }, 500);
-    
-    isPlaying = true;
-    updatePlayButton(true);
-    
-    // Iniciar sequência de introdução
-    visualEffects.startIntroSequence();
+        
+        // Atualizar estado e UI
+        isPlaying = true;
+        updatePlayButton(true);
+    } catch (e) {
+        console.error('Erro ao iniciar reprodução:', e);
+        mostrarAlerta('Clique no player do YouTube primeiro para ativar, depois tente novamente.');
+    }
 }
 
 // Pausar reprodução
 function pausePlayback() {
-    if (!youtubePlayer) return;
+    if (!youtubePlayer) {
+        console.error('Player não inicializado');
+        return;
+    }
     
-    youtubePlayer.pauseVideo();
-    isPlaying = false;
-    updatePlayButton(false);
+    try {
+        const playerState = youtubePlayer.getPlayerState();
+        
+        if (playerState === YT.PlayerState.PLAYING) {
+            youtubePlayer.pauseVideo();
+            console.log('Vídeo pausado');
+            
+            // Atualizar estado e UI
+            isPlaying = false;
+            updatePlayButton(false);
+        } else {
+            console.log('O vídeo não está em reprodução, estado atual:', playerState);
+        }
+    } catch (e) {
+        console.error('Erro ao pausar vídeo:', e);
+    }
 }
 
 // Atualizar aparência do botão de reprodução
 function updatePlayButton(isPlaying) {
     const playBtn = document.getElementById('playBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
     
+    if (!playBtn || !pauseBtn) {
+        console.error('Botões não encontrados');
+        return;
+    }
+    
+    // Atualizar estilo do botão play
     if (isPlaying) {
+        // Se está tocando, destacar o botão de pausar
         playBtn.classList.remove('btn-success');
-        playBtn.classList.add('btn-primary');
+        playBtn.classList.add('btn-outline-success');
+        pauseBtn.classList.remove('btn-outline-danger');
+        pauseBtn.classList.add('btn-danger');
     } else {
-        playBtn.classList.remove('btn-primary');
+        // Se não está tocando, destacar o botão de play
+        playBtn.classList.remove('btn-outline-success');
         playBtn.classList.add('btn-success');
+        pauseBtn.classList.remove('btn-danger');
+        pauseBtn.classList.add('btn-outline-danger');
+    }
+    
+    // Verificar se o player existe
+    const playerExists = !!youtubePlayer;
+    
+    // Habilitar/desabilitar botões com base no estado
+    playBtn.disabled = !playerExists;
+    pauseBtn.disabled = !playerExists;
+    
+    // Adicionar animação de batida se o vídeo estiver tocando
+    if (isPlaying) {
+        playBtn.classList.remove('pulse-animation');
+        pauseBtn.classList.add('pulse-animation');
+    } else {
+        playBtn.classList.add('pulse-animation');
+        pauseBtn.classList.remove('pulse-animation');
     }
 }
 
 // Habilitar controles de reprodução
 function enablePlaybackControls() {
+    console.log('Habilitando controles de reprodução');
+    
     const playBtn = document.getElementById('playBtn');
     const pauseBtn = document.getElementById('pauseBtn');
     
-    playBtn.disabled = false;
-    pauseBtn.disabled = false;
+    if (playBtn) {
+        playBtn.disabled = false;
+        // Garantir que o evento foi removido antes de adicionar novamente
+        playBtn.removeEventListener('click', startPlayback);
+        playBtn.addEventListener('click', startPlayback);
+    } else {
+        console.error('Botão play não encontrado');
+    }
+    
+    if (pauseBtn) {
+        pauseBtn.disabled = false;
+        // Garantir que o evento foi removido antes de adicionar novamente
+        pauseBtn.removeEventListener('click', pausePlayback);
+        pauseBtn.addEventListener('click', pausePlayback);
+    } else {
+        console.error('Botão pause não encontrado');
+    }
+    
+    // Adicionar indicador visual para mostrar que estão habilitados
+    if (playBtn) playBtn.classList.add('btn-pulse-ready');
+    if (pauseBtn) pauseBtn.classList.add('btn-pulse-ready');
+    
+    setTimeout(() => {
+        if (playBtn) playBtn.classList.remove('btn-pulse-ready');
+        if (pauseBtn) pauseBtn.classList.remove('btn-pulse-ready');
+    }, 1000);
 }
 
 // Desabilitar controles de reprodução
