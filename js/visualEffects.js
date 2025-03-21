@@ -1,514 +1,538 @@
+/**
+ * Classe responsável por gerenciar os efeitos visuais para o visualizador de áudio
+ */
 class VisualEffects {
-    constructor(canvasElement) {
-        this.canvas = canvasElement;
-        this.ctx = this.canvas.getContext('2d');
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.resize();
         
-        // Dimensões do canvas
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
-        
-        // Configuração dos efeitos
-        this.currentMode = 'starburst'; // Modo padrão
-        this.introSequenceActive = false;
-        
-        // Parâmetros de animação
+        // Propriedades gerais
+        this.mode = 'starburst'; // Modo padrão
+        this.volumeLevel = 0;
         this.beatImpact = 0;
         this.guitarImpact = 0;
-        this.hue = 0;
-        this.volumeLevel = 0; // Nível de volume global para amplificar efeitos
         
-        // Parâmetros para efeitos
+        // Propriedades para explosão estelar
         this.starburstParticles = [];
+        
+        // Propriedades para efeito circular
         this.circularSegments = 32;
+        this.circularWidth = 0;
+        
+        // Propriedades para caleidoscópio
         this.kaleidoscopeSegments = 8;
         this.kaleidoscopeRotation = 0;
         
-        // Sincronização com áudio
-        this.frequencyData = null;
-        this.timeData = null;
-        
-        // Handler de redimensionamento
-        window.addEventListener('resize', () => this.resize());
+        // Ajustar o tamanho no resize do navegador
+        window.addEventListener('resize', this.resize.bind(this));
     }
     
+    // Redimensionar o canvas
     resize() {
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.centerX = this.canvas.width / 2;
+        this.centerY = this.canvas.height / 2;
+        this.maxRadius = Math.sqrt(this.centerX ** 2 + this.centerY ** 2);
     }
     
+    // Definir modo de visualização
+    setMode(mode) {
+        this.mode = mode;
+        
+        // Limpar partículas ao mudar o modo
+        if (mode === 'starburst') {
+            this.starburstParticles = [];
+        }
+        
+        // Reiniciar propriedades do caleidoscópio
+        if (mode === 'kaleidoscope') {
+            this.kaleidoscopeRotation = 0;
+        }
+    }
+    
+    // Atualizar dados de áudio
     update(frequencyData, timeData) {
         this.frequencyData = frequencyData;
         this.timeData = timeData;
         
-        // Atualizar parâmetros de animação
-        this.hue = (this.hue + 0.5) % 360;
-        
-        // Diminuir gradualmente o impacto de batida/guitarra
-        this.beatImpact *= 0.95;
-        this.guitarImpact *= 0.95;
+        // Atualizar partículas para o efeito de explosão estelar
+        if (this.mode === 'starburst') {
+            this.updateStarburstParticles();
+        }
     }
     
+    // Responder a batidas (graves)
     onBeat(intensity) {
-        // Amplificar o impacto da batida para maior reatividade
-        this.beatImpact = Math.min(1.0, intensity * 2.5);
-    }
-    
-    onGuitar(energy, delta) {
-        // Amplificar o impacto da guitarra para maior reatividade
-        this.guitarImpact = Math.min(1.0, energy * 2.0);
-    }
-    
-    render(time) {
-        this.renderCanvas(time);
-    }
-    
-    renderCanvas(time) {
-        const ctx = this.ctx;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-        ctx.fillRect(0, 0, this.width, this.height);
+        this.beatImpact = Math.min(1.0, intensity * 1.5);
         
-        // Se estiver na sequência inicial de abertura
-        if (this.introSequenceActive) {
-            this.renderIntroSequence(time);
-            return;
+        // Adicionar partículas ao efeito de explosão estelar
+        if (this.mode === 'starburst') {
+            this.addStarburstParticles(intensity);
         }
         
-        // Renderização baseada no modo selecionado
-        switch (this.currentMode) {
+        // Animação de impacto para o efeito circular
+        if (this.mode === 'circular') {
+            this.circularWidth = 30 * intensity;
+        }
+    }
+    
+    // Responder a impactos de guitarra (médios)
+    onGuitar(energy, delta) {
+        this.guitarImpact = delta;
+        
+        // Adicionar partículas menores para o efeito de explosão estelar
+        if (this.mode === 'starburst' && delta > 0.6) {
+            this.addStarburstParticles(delta / 2, 'guitar');
+        }
+        
+        // Alterar rotação do caleidoscópio baseado na energia dos médios
+        if (this.mode === 'kaleidoscope') {
+            this.kaleidoscopeRotation += delta * 0.05;
+        }
+    }
+    
+    // Iniciar sequência de introdução
+    startIntroSequence() {
+        // Limpar partículas existentes
+        this.starburstParticles = [];
+        
+        // Adicionar partículas iniciais
+        if (this.mode === 'starburst') {
+            this.addStarburstParticles(0.8);
+        }
+    }
+    
+    // Renderizar no canvas
+    render(timestamp) {
+        // Limpar canvas
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Renderizar efeito baseado no modo atual
+        switch (this.mode) {
             case 'starburst':
-                this.renderStarburstEffect(time);
+                this.renderStarburstEffect(timestamp);
                 break;
             case 'circular':
-                this.renderCircularEffect(time);
+                this.renderCircularEffect(timestamp);
                 break;
             case 'kaleidoscope':
-                this.renderKaleidoscopeEffect(time);
+                this.renderKaleidoscopeEffect(timestamp);
                 break;
-            default:
-                this.renderStarburstEffect(time);
         }
     }
     
-    renderCircularEffect(time) {
-        if (!this.frequencyData) return;
-        
+    // Renderizar efeito circular
+    renderCircularEffect(timestamp) {
         const ctx = this.ctx;
-        const centerX = this.width / 2;
-        const centerY = this.height / 2;
+        const frequencyData = this.frequencyData;
+        if (!frequencyData) return;
         
-        // Obter médias das frequências para diferentes ranges
-        const bassLevel = this.getAverageFrequency(0, 0.1);
-        const midLevel = this.getAverageFrequency(0.1, 0.5);
-        const highLevel = this.getAverageFrequency(0.5, 1.0);
+        // Calcular número de círculos baseado no volume
+        const numCircles = 5 + Math.floor(this.volumeLevel * 10);
+        const maxRadius = this.maxRadius * (0.8 + this.beatImpact * 0.2);
         
-        // Amplificar com o volume geral
-        const amplifiedBass = bassLevel * (1 + this.volumeLevel * 2);
-        const amplifiedMid = midLevel * (1 + this.volumeLevel * 1.5);
-        const amplifiedHigh = highLevel * (1 + this.volumeLevel);
+        // Gradiente radial para o fundo
+        const gradient = ctx.createRadialGradient(
+            this.centerX, this.centerY, 0,
+            this.centerX, this.centerY, maxRadius
+        );
+        gradient.addColorStop(0, `rgba(99, 102, 241, ${0.5 + this.volumeLevel * 0.5})`);
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
         
-        // Número de círculos concêntricos baseado no nível de volume
-        const numRings = 3 + Math.floor(this.volumeLevel * 3);
+        // Desenhar fundo
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Desenhar círculos concêntricos que reagem ao áudio
-        for (let ring = 0; ring < numRings; ring++) {
-            // Tamanho base do anel + resposta ao baixo
-            const ringRadius = (50 + ring * 60) * (1 + amplifiedBass * 0.5);
+        // Desenhar círculos concêntricos
+        for (let i = 0; i < numCircles; i++) {
+            // Calcular raio baseado no índice e no impacto de batida
+            const radiusRatio = i / numCircles;
+            const radius = maxRadius * radiusRatio * (0.8 + this.beatImpact * 0.2);
             
-            // Criar segmentos do círculo que respondem a diferentes frequências
-            ctx.lineWidth = 2 + amplifiedMid * 8;
+            // Obter a frequência correspondente para este círculo
+            const freqIndex = Math.floor(radiusRatio * frequencyData.length / 2);
+            const freqValue = frequencyData[freqIndex] / 255;
             
-            // Usar mais segmentos quando o volume for alto
-            const segments = this.circularSegments + Math.floor(this.volumeLevel * 16);
+            // Calcular espessura da linha baseada na frequência
+            const lineWidth = (1 + freqValue * 5) * (1 + this.volumeLevel * 3);
             
-            for (let i = 0; i < segments; i++) {
-                const angleStart = (i / segments) * Math.PI * 2;
-                const angleEnd = ((i + 1) / segments) * Math.PI * 2;
-                
-                // Mapear índice do segmento para índice na matriz de frequência
-                const freqIndex = Math.floor((i / segments) * this.frequencyData.length);
-                const freqValue = this.frequencyData[freqIndex] / 255.0;
-                
-                // Calcular raio dinâmico baseado na frequência e impactos
-                const dynamicRadius = ringRadius + freqValue * 80 * (1 + this.beatImpact + this.volumeLevel);
-                
-                // Cor baseada na frequência, impacto da batida e volume
-                const hue = (this.hue + ring * 30 + i * 10) % 360;
-                const saturation = 70 + freqValue * 30;
-                const lightness = 40 + freqValue * 20 + this.beatImpact * 40;
-                
-                ctx.strokeStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-                
-                // Desenhar arco com distorção baseada na guitarra
+            // Calcular cor baseada na frequência
+            const hue = (180 + freqIndex) % 360;
+            const saturation = 80 + freqValue * 20;
+            const lightness = 50 + freqValue * 20;
+            const alpha = 0.6 + freqValue * 0.4;
+            
+            // Desenhar círculo
+            ctx.beginPath();
+            ctx.arc(
+                this.centerX, 
+                this.centerY, 
+                radius + this.circularWidth * (1 - radiusRatio), 
+                0, 
+                Math.PI * 2
+            );
+            ctx.strokeStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
+            ctx.lineWidth = lineWidth;
+            ctx.stroke();
+            
+            // Efeito extra se houver impacto de guitarra
+            if (this.guitarImpact > 0.6 && i % 2 === 0) {
                 ctx.beginPath();
                 ctx.arc(
-                    centerX, 
-                    centerY, 
-                    dynamicRadius, 
-                    angleStart + this.guitarImpact * Math.sin(time * 0.001), 
-                    angleEnd + this.guitarImpact * Math.sin(time * 0.001)
+                    this.centerX, 
+                    this.centerY, 
+                    radius * (1 + this.guitarImpact * 0.1), 
+                    0, 
+                    Math.PI * 2
                 );
+                ctx.strokeStyle = `hsla(${(hue + 180) % 360}, ${saturation}%, ${lightness}%, ${alpha * 0.7})`;
+                ctx.lineWidth = lineWidth * 0.5;
                 ctx.stroke();
-                
-                // Adicionar destaques mais intensos nas batidas
-                if (this.beatImpact > 0.3 && freqValue > 0.6) {
-                    ctx.strokeStyle = `hsla(${hue}, 100%, 80%, ${this.beatImpact * 0.8})`;
-                    ctx.lineWidth = 6 + this.beatImpact * 8;
-                    ctx.beginPath();
-                    ctx.arc(
-                        centerX, 
-                        centerY, 
-                        dynamicRadius, 
-                        angleStart, 
-                        angleEnd
-                    );
-                    ctx.stroke();
-                }
             }
         }
         
-        // Adicionar círculo central que pulsa com a batida e o volume
-        const pulseRadius = 40 * (1 + this.beatImpact * 2 + amplifiedBass);
-        const gradient = ctx.createRadialGradient(
-            centerX, centerY, 0,
-            centerX, centerY, pulseRadius
+        // Reduzir o impacto de batida gradualmente
+        this.beatImpact *= 0.95;
+        this.circularWidth *= 0.9;
+    }
+    
+    // Renderizar efeito explosão estelar
+    renderStarburstEffect(timestamp) {
+        const ctx = this.ctx;
+        
+        // Fundo gradiente animado
+        const bgGradient = ctx.createRadialGradient(
+            this.centerX, this.centerY, 0,
+            this.centerX, this.centerY, this.maxRadius
         );
-        gradient.addColorStop(0, `hsla(${this.hue}, 100%, 70%, ${0.8 + this.volumeLevel * 0.2})`);
-        gradient.addColorStop(1, `hsla(${this.hue}, 100%, 50%, 0)`);
         
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, pulseRadius, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    
-    renderStarburstEffect(time) {
-        if (!this.frequencyData) return;
+        const hue1 = (timestamp / 50) % 360;
+        const hue2 = (hue1 + 60) % 360;
         
-        const ctx = this.ctx;
-        const centerX = this.width / 2;
-        const centerY = this.height / 2;
+        bgGradient.addColorStop(0, `hsla(${hue1}, 70%, 5%, 1)`);
+        bgGradient.addColorStop(1, `hsla(${hue2}, 80%, 10%, 0.8)`);
         
-        // Obter médias das frequências para diferentes ranges
-        const bassLevel = this.getAverageFrequency(0, 0.1);
-        const midLevel = this.getAverageFrequency(0.1, 0.5);
-        const highLevel = this.getAverageFrequency(0.5, 1.0);
+        ctx.fillStyle = bgGradient;
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Adicionar novas partículas na batida e com base no volume
-        if (this.beatImpact > 0.2 || bassLevel > 0.6) {
-            // Número de partículas baseado na intensidade da batida e volume
-            const impactFactor = Math.max(this.beatImpact, bassLevel * 0.8);
-            const scaleFactor = 1 + this.volumeLevel * 2;
-            const numNewParticles = Math.floor(impactFactor * 20 * scaleFactor);
-            
-            for (let i = 0; i < numNewParticles; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                // Velocidade baseada no impacto e volume
-                const speed = (3 + Math.random() * 7 * impactFactor) * (1 + this.volumeLevel);
-                // Tamanho baseado no volume e batida
-                const size = (3 + Math.random() * 6) * (1 + this.volumeLevel + this.beatImpact * 0.5);
-                const life = 60 + Math.random() * 60 * (1 + this.volumeLevel);
-                
-                this.starburstParticles.push({
-                    x: centerX,
-                    y: centerY,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    size: size,
-                    life: life,
-                    maxLife: life,
-                    hue: (this.hue + Math.random() * 60) % 360,
-                    opacity: 1.0
-                });
-            }
-        }
-        
-        // Adicionar linhas na detecção de graves e médios
-        if (this.guitarImpact > 0.2 || midLevel > 0.5) {
-            const impactFactor = Math.max(this.guitarImpact, midLevel * 0.7);
-            const numLines = Math.floor(impactFactor * 10 * (1 + this.volumeLevel));
-            
-            for (let i = 0; i < numLines; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                // Comprimento baseado no impacto, frequências médias e volume
-                const length = (50 + Math.random() * 150 * impactFactor) * (1 + this.volumeLevel);
-                const thickness = (1 + Math.random() * 3) * (1 + this.volumeLevel * 0.5);
-                const life = 40 + Math.random() * 40;
-                
-                this.starburstParticles.push({
-                    x: centerX,
-                    y: centerY,
-                    angle: angle,
-                    length: length,
-                    thickness: thickness,
-                    life: life,
-                    maxLife: life,
-                    hue: (this.hue + 120 + Math.random() * 60) % 360,
-                    opacity: 0.8,
-                    isLine: true
-                });
-            }
-        }
-        
-        // Atualizar e renderizar todas as partículas starburst
-        for (let i = this.starburstParticles.length - 1; i >= 0; i--) {
-            const p = this.starburstParticles[i];
-            p.life--;
-            
-            // Remover partículas mortas
-            if (p.life <= 0) {
-                this.starburstParticles.splice(i, 1);
-                continue;
-            }
-            
-            const lifeRatio = p.life / p.maxLife;
-            p.opacity = lifeRatio * (0.8 + this.volumeLevel * 0.2);
-            
-            if (p.isLine) {
-                // Atualizar linhas (efeito guitarra/médios)
-                const endX = centerX + Math.cos(p.angle) * p.length;
-                const endY = centerY + Math.sin(p.angle) * p.length;
-                
-                const gradient = ctx.createLinearGradient(centerX, centerY, endX, endY);
-                gradient.addColorStop(0, `hsla(${p.hue}, 100%, 70%, ${p.opacity})`);
-                gradient.addColorStop(1, `hsla(${p.hue}, 100%, 50%, 0)`);
-                
-                ctx.lineWidth = p.thickness * lifeRatio * (1 + this.volumeLevel * 0.5);
-                ctx.strokeStyle = gradient;
-                ctx.beginPath();
-                ctx.moveTo(centerX, centerY);
-                ctx.lineTo(endX, endY);
-                ctx.stroke();
-            } else {
-                // Atualizar partículas normais (efeito batida/graves)
-                p.x += p.vx;
-                p.y += p.vy;
-                
-                // Adicionar leve resistência do ar
-                p.vx *= 0.99;
-                p.vy *= 0.99;
-                
-                // Tamanho das partículas afetado pelo volume
-                const currentSize = p.size * lifeRatio * (1 + this.volumeLevel * 0.3);
-                
-                ctx.fillStyle = `hsla(${p.hue}, 100%, 60%, ${p.opacity})`;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, currentSize, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-        
-        // Desenhar círculos concêntricos emanando do centro em batidas fortes e graves
-        const impactFactor = Math.max(this.beatImpact, bassLevel * 0.8);
-        if (impactFactor > 0.4) {
-            for (let i = 0; i < 3; i++) {
-                // Raio baseado no impacto e volume
-                const radius = impactFactor * 250 * (i/3 + 0.5) * (1 + this.volumeLevel);
-                ctx.lineWidth = 3 * impactFactor * (1 + this.volumeLevel * 0.5);
-                ctx.strokeStyle = `hsla(${this.hue}, 100%, 70%, ${impactFactor * 0.5 * (1 - i/3)})`;
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-                ctx.stroke();
-            }
-        }
-    }
-    
-    renderKaleidoscopeEffect(time) {
-        if (!this.frequencyData) return;
-        
-        const ctx = this.ctx;
-        const centerX = this.width / 2;
-        const centerY = this.height / 2;
-        
-        // Limpar o canvas com um fundo mais escuro
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-        ctx.fillRect(0, 0, this.width, this.height);
-        
-        // Obter médias das frequências para diferentes ranges
-        const bassLevel = this.getAverageFrequency(0, 0.1);
-        const midLevel = this.getAverageFrequency(0.1, 0.5);
-        const highLevel = this.getAverageFrequency(0.5, 1.0);
-        
-        // Atualizar rotação baseada no impacto da guitarra e volume
-        const rotationSpeed = 0.005 + this.guitarImpact * 0.02 + this.volumeLevel * 0.01 + midLevel * 0.01;
-        this.kaleidoscopeRotation += rotationSpeed;
-        
-        // Calcular tamanho do segmento baseado em baixas frequências e volume
-        const radius = Math.min(this.width, this.height) * 0.4 * (1 + bassLevel * 0.5 + this.volumeLevel * 0.3);
-        
-        // Número de segmentos baseado no volume e batidas
-        const segments = this.kaleidoscopeSegments + Math.floor(this.volumeLevel * 4 + this.beatImpact * 4);
-        
-        // Desenhar cada segmento do caleidoscópio
-        const segmentAngle = (Math.PI * 2) / segments;
-        
-        // Para cada segmento...
-        for (let i = 0; i < segments; i++) {
-            const angle = i * segmentAngle + this.kaleidoscopeRotation;
-            
-            // Salvar o contexto para cada segmento
-            ctx.save();
-            
-            // Transladar para o centro e rotacionar para este segmento
-            ctx.translate(centerX, centerY);
-            ctx.rotate(angle);
-            
-            // Número de "células" baseado no volume
-            const cellCount = 10 + Math.floor(this.volumeLevel * 5);
-            const segmentHeight = radius / cellCount;
-            
-            for (let j = 0; j < cellCount; j++) {
-                // Obter frequências para diferentes partes do espectro
-                const freqIndex = Math.floor((j / cellCount) * this.frequencyData.length * 0.8);
-                const freqValue = this.frequencyData[freqIndex] / 255.0;
-                
-                // Calcular as dimensões do segmento com base no volume e frequência
-                const y = j * segmentHeight;
-                const widthFactor = 1 + this.volumeLevel + this.beatImpact * 0.5;
-                const width = (30 + freqValue * 100) * widthFactor;
-                const height = segmentHeight * 1.2; // Sobrepor levemente
-                
-                // Escolher cor baseada na frequência, batida e volume
-                const hue = (this.hue + j * 15 + i * 30) % 360;
-                const saturation = 80 + freqValue * 20;
-                const brightness = 40 + freqValue * 30 + this.beatImpact * 20 + this.volumeLevel * 20;
-                
-                // Desenhar forma espelhada com transparência afetada pelo volume
-                const opacity = 0.6 + freqValue * 0.4 + this.volumeLevel * 0.2;
-                ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${brightness}%, ${opacity})`;
-                
-                // Desenhar formas em ambos os lados (espelhamento)
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-                ctx.lineTo(width * 0.8, y + height);
-                ctx.lineTo(0, y + height);
-                ctx.fill();
-                
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(-width, y);
-                ctx.lineTo(-width * 0.8, y + height);
-                ctx.lineTo(0, y + height);
-                ctx.fill();
-                
-                // Adicionar destaques nas batidas fortes e baixas frequências
-                if ((this.beatImpact > 0.5 || bassLevel > 0.6) && j % 3 === 0) {
-                    const highlightSize = 10 * (this.beatImpact + bassLevel * 0.5) * (1 + this.volumeLevel * 0.5);
-                    ctx.fillStyle = `hsla(${hue}, 100%, 75%, ${this.beatImpact * 0.7 + bassLevel * 0.3})`;
-                    
-                    ctx.beginPath();
-                    ctx.arc(width * 0.7, y + height/2, highlightSize, 0, Math.PI * 2);
-                    ctx.fill();
-                    
-                    ctx.beginPath();
-                    ctx.arc(-width * 0.7, y + height/2, highlightSize, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-            
-            // Restaurar o contexto após desenhar o segmento
-            ctx.restore();
-        }
-        
-        // Adicionar efeito central para impacto de guitarra e volume
-        const centerImpact = Math.max(this.guitarImpact, midLevel * 0.7, this.volumeLevel * 0.5);
-        if (centerImpact > 0.2) {
-            const guitarRadius = (30 + centerImpact * 70) * (1 + this.volumeLevel * 0.5);
-            const gradient = ctx.createRadialGradient(
-                centerX, centerY, 0,
-                centerX, centerY, guitarRadius
-            );
-            gradient.addColorStop(0, `hsla(${(this.hue + 180) % 360}, 100%, 70%, ${centerImpact})`);
-            gradient.addColorStop(1, `hsla(${(this.hue + 180) % 360}, 100%, 50%, 0)`);
-            
-            ctx.fillStyle = gradient;
+        // Desenhar círculos de fundo pulsantes com menos operações
+        if (this.beatImpact > 0.1) {
             ctx.beginPath();
-            ctx.arc(centerX, centerY, guitarRadius, 0, Math.PI * 2);
+            const radius = this.maxRadius * 0.5 * (1 + this.beatImpact * 0.5);
+            const gradient = ctx.createRadialGradient(
+                this.centerX, this.centerY, 0,
+                this.centerX, this.centerY, radius
+            );
+            gradient.addColorStop(0, `hsla(${hue1}, 80%, 50%, ${this.beatImpact * 0.3})`);
+            gradient.addColorStop(1, 'hsla(0, 0%, 0%, 0)');
+            ctx.fillStyle = gradient;
+            ctx.arc(this.centerX, this.centerY, radius, 0, Math.PI * 2);
             ctx.fill();
         }
-    }
-    
-    renderIntroSequence(time) {
-        const ctx = this.ctx;
-        const centerX = this.width / 2;
-        const centerY = this.height / 2;
         
-        // Calcular fase da animação (0 a 1)
-        const phase = Math.min(time / 3000, 1.0);
+        // Desenhar partículas com glow
+        ctx.globalCompositeOperation = 'lighter';
         
-        if (phase >= 1.0) {
-            this.introSequenceActive = false;
-            return;
-        }
+        // Limitar o número de operações de desenho para melhorar o desempenho
+        const particlesToRender = this.starburstParticles.length > 200 ? 
+            this.starburstParticles.slice(-200) : this.starburstParticles;
         
-        // Explosão inicial
-        const radius = phase * Math.min(this.width, this.height) * 0.8;
-        const alpha = 1.0 - phase;
-        
-        const grd = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-        grd.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
-        grd.addColorStop(0.2, `hsla(${this.hue}, 100%, 70%, ${alpha * 0.8})`);
-        grd.addColorStop(1, `hsla(${this.hue + 60}, 100%, 50%, 0)`);
-        
-        ctx.fillStyle = grd;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Ondas de choque
-        const numWaves = 3;
-        for (let i = 0; i < numWaves; i++) {
-            const wavePhase = phase - i * 0.2;
+        particlesToRender.forEach(p => {
+            ctx.beginPath();
             
-            if (wavePhase > 0 && wavePhase < 1.0) {
-                const waveRadius = wavePhase * Math.min(this.width, this.height) * 0.7;
-                const waveAlpha = 0.7 * (1.0 - wavePhase);
-                const waveWidth = 10 * (1.0 - wavePhase);
+            // Gradiente para cada partícula
+            const gradient = ctx.createRadialGradient(
+                p.x, p.y, 0,
+                p.x, p.y, p.size * 2
+            );
+            
+            // Extrair componentes da cor
+            const colorMatch = p.color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+            if (colorMatch) {
+                const [_, hue, sat, light] = colorMatch;
                 
-                ctx.lineWidth = waveWidth;
-                ctx.strokeStyle = `hsla(${this.hue + i * 30}, 100%, 70%, ${waveAlpha})`;
+                // Cores mais brilhantes e vibrantes
+                gradient.addColorStop(0, `hsla(${hue}, ${sat}%, ${light}%, ${p.life * 1.2})`);
+                gradient.addColorStop(1, `hsla(${hue}, ${sat}%, ${light}%, 0)`);
+                
+                // Fazer partículas maiores para melhor visibilidade
+                const scaleFactor = 1.2 + this.volumeLevel * 1.5;
+                ctx.fillStyle = gradient;
+                ctx.arc(p.x, p.y, p.size * scaleFactor, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Simplificar efeito - remover os detalhes extras para melhorar desempenho
+                if (p.size > 3 && Math.random() > 0.7) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size * 0.7 * scaleFactor, 0, Math.PI * 2);
+                    ctx.fillStyle = `hsla(${hue}, ${sat}%, 95%, ${p.life * 0.9})`;
+                    ctx.fill();
+                }
+            }
+        });
+        
+        // Restaurar modo de composição
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Desenhar linhas radiais nas batidas fortes (reduzir complexidade)
+        if (this.beatImpact > 0.4) { // Aumentar threshold
+            const numLines = Math.floor(4 + this.beatImpact * 8); // Reduzir número de linhas
+            const maxLength = this.maxRadius * (0.2 + this.beatImpact * 0.8);
+            
+            for (let i = 0; i < numLines; i++) {
+                const angle = (i / numLines) * Math.PI * 2;
+                const length = maxLength * (0.5 + Math.random() * 0.5);
+                
+                const endX = this.centerX + Math.cos(angle) * length;
+                const endY = this.centerY + Math.sin(angle) * length;
+                
+                // Simplificar gradiente para melhorar desempenho
+                const hue = (hue1 + i * 30) % 360;
+                ctx.strokeStyle = `hsla(${hue}, 100%, 70%, ${this.beatImpact})`;
+                ctx.lineWidth = 2 + this.beatImpact * 3;
+                
                 ctx.beginPath();
-                ctx.arc(centerX, centerY, waveRadius, 0, Math.PI * 2);
+                ctx.moveTo(this.centerX, this.centerY);
+                ctx.lineTo(endX, endY);
                 ctx.stroke();
             }
         }
     }
     
-    // Método auxiliar para obter média de frequências em um range específico
-    getAverageFrequency(startPercent, endPercent) {
-        if (!this.frequencyData) return 0;
+    // Adicionar partículas para o efeito explosão estelar
+    addStarburstParticles(intensity, type = 'beat') {
+        // Reduzir o número de partículas para melhorar o desempenho
+        const count = type === 'beat' 
+            ? Math.floor(15 + intensity * 60) 
+            : Math.floor(5 + intensity * 20);
+            
+        const speedMultiplier = type === 'beat' ? 1.2 : 1.8;
+        const sizeMultiplier = type === 'beat' ? 1.5 : 0.9;
         
-        const start = Math.floor(startPercent * this.frequencyData.length);
-        const end = Math.floor(endPercent * this.frequencyData.length);
-        let sum = 0;
-        
-        for (let i = start; i < end; i++) {
-            sum += this.frequencyData[i] / 255.0;
+        // Limitar o número máximo de partículas para evitar lentidão
+        if (this.starburstParticles.length > 300) {
+            this.starburstParticles = this.starburstParticles.slice(-200);
         }
         
-        return sum / (end - start);
+        for (let i = 0; i < count; i++) {
+            // Calcular direção aleatória
+            const angle = Math.random() * Math.PI * 2;
+            const speed = (2 + Math.random() * 6) * speedMultiplier * intensity;
+            
+            // Definir cor baseada no tipo (cores mais vibrantes)
+            let hue, sat, light;
+            if (type === 'beat') {
+                hue = 180 + Math.random() * 60;
+                sat = 90 + Math.random() * 10;
+                light = 65 + Math.random() * 20;
+            } else {
+                hue = 280 + Math.random() * 60;
+                sat = 95;
+                light = 75;
+            }
+            
+            // Adicionar partícula (maiores e mais lentas para aumentar visibilidade)
+            this.starburstParticles.push({
+                x: this.centerX,
+                y: this.centerY,
+                size: (2 + Math.random() * 4) * sizeMultiplier * intensity,
+                speedX: Math.cos(angle) * speed,
+                speedY: Math.sin(angle) * speed,
+                life: 1.0,
+                decay: 0.01 + Math.random() * 0.02, // Decaimento mais rápido
+                color: `hsl(${hue}, ${sat}%, ${light}%)`
+            });
+        }
     }
     
-    startIntroSequence() {
-        this.introSequenceActive = true;
-        this.starburstParticles = [];
+    // Atualizar partículas para o efeito explosão estelar
+    updateStarburstParticles() {
+        // Remover partículas mortas
+        this.starburstParticles = this.starburstParticles.filter(p => p.life > 0);
+        
+        // Atualizar posição e vida
+        this.starburstParticles.forEach(p => {
+            p.x += p.speedX;
+            p.y += p.speedY;
+            p.life -= p.decay;
+            
+            // Aplicar gravidade
+            p.speedY += 0.05;
+            
+            // Reduzir velocidade (atrito)
+            p.speedX *= 0.99;
+            p.speedY *= 0.99;
+        });
     }
     
-    setMode(mode) {
-        // Resetar efeitos específicos quando o modo muda
-        if (mode === 'starburst' && this.currentMode !== 'starburst') {
-            this.starburstParticles = [];
+    // Renderizar efeito caleidoscópio
+    renderKaleidoscopeEffect(timestamp) {
+        const ctx = this.ctx;
+        if (!this.frequencyData) return;
+        
+        // Limpar canvas
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Número de segmentos baseado no volume
+        const segments = this.kaleidoscopeSegments + Math.floor(this.volumeLevel * 8);
+        const angleStep = (Math.PI * 2) / segments;
+        
+        // Incrementar rotação baseado no guitarImpact
+        this.kaleidoscopeRotation += 0.002 + this.guitarImpact * 0.01;
+        
+        // Ajustar o raio máximo baseado no impacto de batida
+        const maxRadius = this.maxRadius * (0.7 + this.beatImpact * 0.3);
+        
+        // Desenhar cada segmento do caleidoscópio
+        for (let i = 0; i < segments; i++) {
+            // Calcular ângulo de início e fim
+            const startAngle = i * angleStep + this.kaleidoscopeRotation;
+            const endAngle = startAngle + angleStep;
+            
+            // Criar um gradiente para o segmento
+            const gradient = ctx.createLinearGradient(
+                this.centerX, this.centerY,
+                this.centerX + Math.cos(startAngle) * maxRadius,
+                this.centerY + Math.sin(startAngle) * maxRadius
+            );
+            
+            // Calcular cores baseadas em frequências
+            const freq1 = this.frequencyData[i % this.frequencyData.length] / 255;
+            const freq2 = this.frequencyData[(i * 5) % this.frequencyData.length] / 255;
+            
+            const hue1 = (timestamp / 50 + i * 30) % 360;
+            const hue2 = (hue1 + 180) % 360;
+            
+            gradient.addColorStop(0, `hsla(${hue1}, 100%, ${50 + freq1 * 30}%, ${0.7 + freq1 * 0.3})`);
+            gradient.addColorStop(1, `hsla(${hue2}, 100%, ${50 + freq2 * 30}%, ${0.1 + freq2 * 0.3})`);
+            
+            // Desenhar o segmento do caleidoscópio
+            ctx.beginPath();
+            ctx.moveTo(this.centerX, this.centerY);
+            ctx.arc(this.centerX, this.centerY, maxRadius, startAngle, endAngle);
+            ctx.closePath();
+            
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Adicionar efeito de borda
+            if (this.beatImpact > 0.2) {
+                ctx.strokeStyle = `hsla(${hue1}, 100%, 70%, ${this.beatImpact})`;
+                ctx.lineWidth = 2 * this.beatImpact;
+                ctx.stroke();
+            }
         }
         
-        if (mode === 'kaleidoscope' && this.currentMode !== 'kaleidoscope') {
-            this.kaleidoscopeRotation = 0;
+        // Efeito central
+        const centerRadius = 50 + this.volumeLevel * 100 + this.beatImpact * 50;
+        const centerGradient = ctx.createRadialGradient(
+            this.centerX, this.centerY, 0,
+            this.centerX, this.centerY, centerRadius
+        );
+        
+        centerGradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 + this.beatImpact * 0.2})`);
+        centerGradient.addColorStop(0.5, `rgba(200, 220, 255, ${0.2 + this.volumeLevel * 0.3})`);
+        centerGradient.addColorStop(1, 'rgba(100, 150, 255, 0)');
+        
+        ctx.beginPath();
+        ctx.arc(this.centerX, this.centerY, centerRadius, 0, Math.PI * 2);
+        ctx.fillStyle = centerGradient;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Reduzir impacto de batida
+        this.beatImpact *= 0.95;
+    }
+
+    // Atualiza os dados de áudio para os efeitos visuais
+    updateAudioData(frequencyData, timeData) {
+        this.frequencyData = frequencyData;
+        this.timeData = timeData;
+        
+        // Inicializar valores se não existirem
+        if (!this.volumeHistory) {
+            this.volumeHistory = Array(10).fill(0);
         }
         
-        this.currentMode = mode;
+        // Processar apenas uma parte dos dados para melhorar desempenho
+        if (frequencyData && frequencyData.length > 0) {
+            // Calcular volume usando amostragem para melhorar desempenho
+            let volume = 0;
+            const step = Math.max(1, Math.floor(frequencyData.length / 32)); // Amostrar menos pontos
+            let sampleCount = 0;
+            
+            for (let i = 0; i < frequencyData.length; i += step) {
+                volume += frequencyData[i] / 255;
+                sampleCount++;
+            }
+            
+            volume = volume / sampleCount;
+            
+            // Atualizar histórico de volume
+            this.volumeHistory.push(volume);
+            this.volumeHistory.shift();
+            
+            // Calcular média móvel para suavizar
+            this.volumeLevel = this.volumeHistory.reduce((a, b) => a + b, 0) / this.volumeHistory.length;
+            
+            // Detectar batidas em frequências baixas (graves)
+            let bassEnergy = 0;
+            for (let i = 0; i < Math.min(8, Math.floor(frequencyData.length / 16)); i++) {
+                bassEnergy += frequencyData[i] / 255;
+            }
+            bassEnergy = bassEnergy / 8;
+            
+            // Detectar batidas em frequências médias (guitarra)
+            let midEnergy = 0;
+            const midStart = Math.floor(frequencyData.length / 8);
+            const midEnd = Math.floor(frequencyData.length / 3);
+            const midStep = Math.max(1, Math.floor((midEnd - midStart) / 8));
+            
+            for (let i = midStart; i < midEnd; i += midStep) {
+                midEnergy += frequencyData[i] / 255;
+            }
+            midEnergy = midEnergy / 8;
+            
+            // Verificar impacto de batida (se há um pico significativo)
+            if (bassEnergy > 0.6 && bassEnergy > this.lastBassEnergy * 1.3) {
+                this.beatImpact = Math.min(1, bassEnergy * 1.2);
+                this.addStarburstParticles(this.beatImpact, 'beat');
+                
+                // Afetar propriedades dos efeitos
+                if (this.mode === 'circular') {
+                    this.circularWidth = 20;
+                }
+            }
+            
+            // Verificar impacto de guitarra
+            if (midEnergy > 0.55 && midEnergy > this.lastMidEnergy * 1.2) {
+                this.guitarImpact = Math.min(1, midEnergy * 1.1);
+                
+                // Adicionar menos partículas para guitarras para não sobrecarregar
+                if (Math.random() > 0.5) {
+                    this.addStarburstParticles(this.guitarImpact * 0.8, 'guitar');
+                }
+            }
+            
+            // Atualizar valores anteriores
+            this.lastBassEnergy = bassEnergy;
+            this.lastMidEnergy = midEnergy;
+        }
+        
+        // Atualizar propriedades específicas de cada efeito
+        if (this.mode === 'kaleidoscope') {
+            // Girar o caleidoscópio de acordo com o volume
+            this.kaleidoscopeRotation += 0.01 + this.volumeLevel * 0.03;
+        }
+        
+        // Atualizar partículas para o efeito starburst
+        if (this.mode === 'starburst') {
+            this.updateStarburstParticles();
+        }
     }
 }
 
